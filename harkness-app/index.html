@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Home · Harkness Toolkit</title>
+  <link rel="stylesheet" href="./assets/styles.css"/>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Harkness Toolkit</h1>
+    <nav class="nav">
+      <a href="./index.html" style="border-color:var(--accent)">Home</a>
+      <a href="./learn.html" >Learn</a>
+      <a href="./prepare.html" >Prepare</a>
+      <a href="./reflect.html" >Reflect</a>
+      <a href="./rubric.html" >Rubric</a>
+      <a href="./dashboard.html" >Dashboard</a>
+    </nav>
+  </div>
+
+  <div class="card">
+    <p class="badge">Start here</p>
+    <h2>Organized by when students use it</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <h2>1) Learn (during discussion)</h2>
+        <p>Roles, sentence stems, and real-time moves to help students contribute equitably.</p>
+        <a class="btn" href="./learn.html">Open Learn</a>
+      </div>
+      <div class="card">
+        <h2>2) Prepare (before discussion)</h2>
+        <p>Prompts and checklists for reading, annotating, and question crafting.</p>
+        <a class="btn" href="./prepare.html">Open Prepare</a>
+      </div>
+      <div class="card">
+        <h2>3) Reflect (after discussion)</h2>
+        <p>Self-assessment, evidence of impact, and planning next steps.</p>
+        <a class="btn" href="./reflect.html">Open Reflect</a>
+      </div>
+    </div>
+    <hr/>
+    <div class="grid grid-3">
+      <div class="card">
+        <h2>Rubric & Equity Mapping</h2>
+        <p>Category and role tags to code comments for equity mapping software. Export as JSON.</p>
+        <a class="btn" href="./rubric.html">Open Rubric</a>
+      </div>
+      <div class="card">
+        <h2>Class Growth Dashboard</h2>
+        <p>Upload a CSV/XLSX or point to <span class="kbd">/data/sample_harkness_data.xlsx</span> to visualize role frequency and trends.</p>
+        <a class="btn primary" href="./dashboard.html">Open Dashboard</a>
+      </div>
+      <div class="card">
+        <h2>Teacher Guide</h2>
+        <p>Based on your 9th grade Harkness guide. Use in class or print for students.</p>
+        <a class="btn" href="./learn.html#reference">See Reference</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>© 2025 Harkness Toolkit · Static app for GitHub Pages. Upload your spreadsheet in <span class="kbd">Dashboard → Load file</span> or replace <span class="kbd">/data/sample_harkness_data.xlsx</span> in the repo.</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./assets/app.js"></script>
+</body>
+</html>

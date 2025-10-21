@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Rubric · Harkness Toolkit</title>
+  <link rel="stylesheet" href="./assets/styles.css"/>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Harkness Toolkit</h1>
+    <nav class="nav">
+      <a href="./index.html" >Home</a>
+      <a href="./learn.html" >Learn</a>
+      <a href="./prepare.html" >Prepare</a>
+      <a href="./reflect.html" >Reflect</a>
+      <a href="./rubric.html" style="border-color:var(--accent)">Rubric</a>
+      <a href="./dashboard.html" >Dashboard</a>
+    </nav>
+  </div>
+
+  <div class="card">
+    <h2>Rubric (Learn · Prepare · Reflect)</h2>
+    <p class="small">Use these categories for equity mapping. Export as JSON to import into your tool.</p>
+    <div id="rubric-table"></div>
+    <button class="btn" id="export-json">Export Rubric JSON</button>
+  </div>
+  <script>
+    (function(){
+      const root = document.getElementById('rubric-table');
+      const r = window.Harkness.RUBRIC;
+      const frag = document.createDocumentFragment();
+      r.categories.forEach(cat => {
+        const h = document.createElement('h3'); h.textContent = cat.label; frag.appendChild(h);
+        const table = document.createElement('table'); table.className='table';
+        table.innerHTML = '<tr><th>Descriptor</th><th>Levels</th><th>Examples</th></tr>';
+        cat.descriptors.forEach(d => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td><b>${d.label}</b><div class="small">(${d.id})</div></td>
+                          <td>${d.levels.join(' → ')}</td>
+                          <td class="small">${d.examples.join(' · ')}</td>`;
+          table.appendChild(tr);
+        });
+        frag.appendChild(table);
+      });
+      const h2 = document.createElement('h3'); h2.textContent = "Role Tags";
+      frag.appendChild(h2);
+      const roles = document.createElement('table'); roles.className='table';
+      roles.innerHTML = '<tr><th>Role</th><th>Tag</th><th>Typical Phase</th><th>Sample Stem</th></tr>';
+      window.Harkness.RUBRIC.roles.forEach(x=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><b>${x.label}</b></td><td><code class="kbd">${x.id}</code></td><td>${x.phase.join(', ')}</td><td class="small">${x.stems[0]||''}</td>`;
+        roles.appendChild(tr);
+      });
+      frag.appendChild(roles);
+      root.appendChild(frag);
+
+      document.getElementById('export-json').addEventListener('click', ()=>{
+        const payload = JSON.stringify(window.Harkness.RUBRIC, null, 2);
+        dl("harkness_rubric.json", payload);
+      });
+    })();
+  </script>
+
+  <footer>© 2025 Harkness Toolkit · Static app for GitHub Pages. Upload your spreadsheet in <span class="kbd">Dashboard → Load file</span> or replace <span class="kbd">/data/sample_harkness_data.xlsx</span> in the repo.</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./assets/app.js"></script>
+</body>
+</html>

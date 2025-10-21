@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard · Harkness Toolkit</title>
+  <link rel="stylesheet" href="./assets/styles.css"/>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Harkness Toolkit</h1>
+    <nav class="nav">
+      <a href="./index.html" >Home</a>
+      <a href="./learn.html" >Learn</a>
+      <a href="./prepare.html" >Prepare</a>
+      <a href="./reflect.html" >Reflect</a>
+      <a href="./rubric.html" >Rubric</a>
+      <a href="./dashboard.html" style="border-color:var(--accent)">Dashboard</a>
+    </nav>
+  </div>
+
+  <div class="card">
+    <h2>Class Growth Dashboard</h2>
+    <p class="small">Load a CSV or XLSX with at least a <b>Role</b> column (matching tags like <code class="kbd">initiator</code>, <code class="kbd">connector</code>, etc.). Optionally include a <b>Date</b> column.</p>
+    <div class="flex">
+      <label>Load file:
+        <input type="file" id="file-input" accept=".csv,.xlsx,.xls"/>
+      </label>
+      <button class="btn" id="load-sample">Load /data/sample_harkness_data.xlsx</button>
+      <label>Role column:
+        <select id="role-col"></select>
+      </label>
+      <label>Date column (optional):
+        <select id="date-col"></select>
+      </label>
+    </div>
+    <div class="section">
+      <canvas id="roleChart" height="120"></canvas>
+    </div>
+    <div class="section">
+      <canvas id="trendChart" height="120"></canvas>
+    </div>
+    <div class="section">
+      <div id="insights" class="small"></div>
+    </div>
+  </div>
+  <script>
+    let roleChart, trendChart;
+    function destroyChart(c){ if (c) { c.destroy(); } }
+    function headersFromRows(rows){
+      return Object.keys(rows[0] || {});
+    }
+    function autoDetectColumns(rows){
+      const headers = headersFromRows(rows);
+      const roleGuess = headers.find(h => /role/i.test(h)) || headers[0];
+      const dateGuess = headers.find(h => /date|day|session/i.test(h)) || "";
+      return {roleGuess, dateGuess, headers};
+    }
+    function normalizeRole(val){
+      if(!val) return "";
+      return String(val).trim().toLowerCase().replace(/\s+/g,'-');
+    }
+    function parseCSV(text){
+      const res = Papa.parse(text, {header:true, skipEmptyLines:true});
+      return res.data;
+    }
+    async function parseXLSXFile(fileOrBuff){
+      const data = fileOrBuff instanceof ArrayBuffer ? fileOrBuff : await fileOrBuff.arrayBuffer();
+      const wb = XLSX.read(data, {type:'array'});
+      const sheetName = wb.SheetNames[0];
+      return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:""});
+    }
+    function buildRoleCounts(rows, roleCol){
+      const counts = {};
+      rows.forEach(r=>{
+        const tag = normalizeRole(r[roleCol]);
+        if(!tag) return;
+        counts[tag] = (counts[tag]||0)+1;
+      });
+      return counts;
+    }
+    function groupByDate(rows, roleCol, dateCol){
+      const out = {};
+      rows.forEach(r=>{
+        const tag = normalizeRole(r[roleCol]);
+        if(!tag) return;
+        const d = dateCol ? new Date(r[dateCol]) : null;
+        const key = d && !isNaN(d) ? d.toISOString().slice(0,10) : "unspecified";
+        out[key] = out[key] || {};
+        out[key][tag] = (out[key][tag]||0)+1;
+      });
+      return out;
+    }
+    function renderRoleChart(counts){
+      destroyChart(roleChart);
+      const labels = Object.keys(counts);
+      const data = labels.map(k=>counts[k]);
+      roleChart = new Chart(document.getElementById('roleChart').getContext('2d'),{
+        type:'bar',
+        data:{labels, datasets:[{label:'Role Frequency', data}]},
+        options:{responsive:true, plugins:{legend:{display:false}}}
+      });
+    }
+    function renderTrendChart(grouped){
+      destroyChart(trendChart);
+      const dates = Object.keys(grouped).sort();
+      const roles = new Set();
+      dates.forEach(d=>Object.keys(grouped[d]).forEach(r=>roles.add(r)));
+      const datasets = Array.from(roles).map(r=>({label:r, data: dates.map(d=> grouped[d][r]||0)}));
+      trendChart = new Chart(document.getElementById('trendChart').getContext('2d'),{
+        type:'line',
+        data:{labels:dates, datasets},
+        options:{responsive:true}
+      });
+    }
+    function computeInsights(counts, grouped){
+      const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+      const top3 = entries.slice(0,3).map(([k,v])=>`<li><b>${k}</b>: ${v}</li>`).join('');
+      // simple recent change: last vs previous session
+      const dates = Object.keys(grouped).sort();
+      let deltas = [];
+      if(dates.length>=2){
+        const last = grouped[dates[dates.length-1]], prev = grouped[dates[dates.length-2]];
+        const roles = new Set([...Object.keys(last), ...Object.keys(prev)]);
+        deltas = Array.from(roles).map(r => [r,(last[r]||0)-(prev[r]||0)]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+      }
+      const mostUp = deltas.find(d=>d[1]>0);
+      const mostDown = deltas.find(d=>d[1]<0);
+      $('#insights').innerHTML = `
+        <h3>Quick Insights</h3>
+        <ul>
+          ${top3? `<li>Top roles overall: <ul>${top3}</ul></li>`:''}
+          ${mostUp? `<li>Rising: <b>${mostUp[0]}</b> (Δ ${mostUp[1]})</li>`:''}
+          ${mostDown? `<li>Falling: <b>${mostDown[0]}</b> (Δ ${mostDown[1]})</li>`:''}
+        </ul>
+        <p class="small">Tip: Map your role tags to the rubric: ${window.Harkness.RUBRIC.roles.map(r=>'<code class="kbd">'+r.id+'</code>').join(' ')}</p>
+      `;
+    }
+    async function handleRows(rows){
+      const {roleGuess, dateGuess, headers} = autoDetectColumns(rows);
+      const roleSel = document.getElementById('role-col');
+      const dateSel = document.getElementById('date-col');
+      roleSel.innerHTML = headers.map(h=>`<option ${h===roleGuess?'selected':''}>${h}</option>`).join('');
+      dateSel.innerHTML = [''].concat(headers).map(h=>`<option ${h===dateGuess?'selected':''}>${h}</option>`).join('');
+      const roleCol = roleGuess; const dateCol = dateGuess || null;
+      const counts = buildRoleCounts(rows, roleCol);
+      renderRoleChart(counts);
+      const grouped = groupByDate(rows, roleCol, dateCol);
+      renderTrendChart(grouped);
+      computeInsights(counts, grouped);
+    }
+    // File input
+    document.getElementById('file-input').addEventListener('change', async (e)=>{
+      const file = e.target.files[0]; if(!file) return;
+      if(file.name.endsWith('.csv')){
+        const text = await file.text();
+        const rows = parseCSV(text);
+        handleRows(rows);
+      } else {
+        const rows = await parseXLSXFile(file);
+        handleRows(rows);
+      }
+    });
+    // Load sample via fetch (works on GitHub Pages when file in /data)
+    document.getElementById('load-sample').addEventListener('click', async ()=>{
+      try{
+        const res = await fetch('./data/sample_harkness_data.xlsx');
+        if(!res.ok) throw new Error('Sample not found in /data');
+        const buff = await res.arrayBuffer();
+        const rows = await parseXLSXFile(buff);
+        handleRows(rows);
+      }catch(err){
+        alert(err.message + '\nTip: commit your class spreadsheet to /data and update the button path.');
+      }
+    });
+  </script>
+
+  <footer>© 2025 Harkness Toolkit · Static app for GitHub Pages. Upload your spreadsheet in <span class="kbd">Dashboard → Load file</span> or replace <span class="kbd">/data/sample_harkness_data.xlsx</span> in the repo.</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./assets/app.js"></script>
+</body>
+</html>
