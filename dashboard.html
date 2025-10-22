@@ -22,12 +22,24 @@
 
   <div class="card">
     <h2>Class Growth Dashboard</h2>
-    <p class="small">Load a CSV or XLSX with at least a <b>Role</b> column (matching tags like <code class="kbd">initiator</code>, <code class="kbd">connector</code>, etc.). Optionally include a <b>Date</b> column.</p>
+    <p>Upload your cumulative CSV or XLSX file to visualize role frequency, track growth over time, and identify participation patterns.</p>
+
+    <div class="card" style="background: var(--bg-secondary); margin-bottom: 2rem;">
+      <h3 style="margin-top: 0;">How Data Tracking Works</h3>
+      <p><strong>Important:</strong> This tool does not store data permanently. To track growth over time, maintain a master CSV/XLSX file with all your discussion data.</p>
+      <ul style="margin-left: 1.5rem;">
+        <li><strong>Required column:</strong> <code class="kbd">Role</code> (values: initiator, connector, questioner, evidence-finder, synthesizer, devils-advocate, bridge-builder, close-reader)</li>
+        <li><strong>Optional columns:</strong> <code class="kbd">Date</code>, <code class="kbd">Student</code>, <code class="kbd">Session</code></li>
+        <li><strong>After each discussion:</strong> Add new rows to your file with the date and roles observed</li>
+        <li><strong>Re-upload the full file</strong> to see updated trends, aggregates, and insights</li>
+      </ul>
+    </div>
+
     <div class="flex">
       <label>Load file:
         <input type="file" id="file-input" accept=".csv,.xlsx,.xls"/>
       </label>
-      <button class="btn" id="load-sample">Load /data/sample_harkness_data.xlsx</button>
+      <button class="btn" id="load-sample">Load Sample Data</button>
       <label>Role column:
         <select id="role-col"></select>
       </label>
@@ -35,14 +47,23 @@
         <select id="date-col"></select>
       </label>
     </div>
+
+    <div id="aggregate-stats" class="section"></div>
+
     <div class="section">
-      <canvas id="roleChart" height="120"></canvas>
+      <h3>Role Frequency</h3>
+      <p class="small">Total occurrences of each role across all uploaded data</p>
+      <canvas id="roleChart" height="100"></canvas>
     </div>
+
     <div class="section">
-      <canvas id="trendChart" height="120"></canvas>
+      <h3>Trends Over Time</h3>
+      <p class="small">How role participation changes across discussion sessions (requires Date column)</p>
+      <canvas id="trendChart" height="100"></canvas>
     </div>
+
     <div class="section">
-      <div id="insights" class="small"></div>
+      <div id="insights"></div>
     </div>
   </div>
   <script>
@@ -114,11 +135,48 @@
         options:{responsive:true}
       });
     }
+    function renderAggregateStats(rows, counts, grouped){
+      const dates = Object.keys(grouped).sort().filter(d => d !== "unspecified");
+      const totalRoles = Object.values(counts).reduce((sum, val) => sum + val, 0);
+      const avgPerSession = dates.length > 0 ? (totalRoles / dates.length).toFixed(1) : totalRoles;
+      const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+
+      // Calculate participation equity (coefficient of variation)
+      const roleCounts = Object.values(counts);
+      const mean = roleCounts.reduce((a,b)=>a+b,0) / roleCounts.length;
+      const variance = roleCounts.reduce((sum,val)=>sum+Math.pow(val-mean,2),0) / roleCounts.length;
+      const stdDev = Math.sqrt(variance);
+      const cv = (stdDev / mean * 100).toFixed(1);
+
+      const html = `
+        <div class="grid grid-3">
+          <div class="card" style="background: var(--bg-secondary);">
+            <h3 style="margin-top: 0; font-size: 1rem; color: var(--text-muted);">Total Observations</h3>
+            <p style="font-size: 2.5rem; font-weight: 300; margin: 0; color: var(--accent); font-family: Georgia, serif;">${totalRoles}</p>
+            <p class="small" style="margin: 0;">Across ${dates.length > 0 ? dates.length + ' sessions' : 'all data'}</p>
+          </div>
+          <div class="card" style="background: var(--bg-secondary);">
+            <h3 style="margin-top: 0; font-size: 1rem; color: var(--text-muted);">Average Per Session</h3>
+            <p style="font-size: 2.5rem; font-weight: 300; margin: 0; color: var(--accent); font-family: Georgia, serif;">${avgPerSession}</p>
+            <p class="small" style="margin: 0;">Role observations</p>
+          </div>
+          <div class="card" style="background: var(--bg-secondary);">
+            <h3 style="margin-top: 0; font-size: 1rem; color: var(--text-muted);">Equity Distribution</h3>
+            <p style="font-size: 2.5rem; font-weight: 300; margin: 0; color: var(--accent); font-family: Georgia, serif;">${cv}%</p>
+            <p class="small" style="margin: 0;">Coefficient of variation (lower = more balanced)</p>
+          </div>
+        </div>
+      `;
+      document.getElementById('aggregate-stats').innerHTML = html;
+    }
+
     function computeInsights(counts, grouped){
       const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-      const top3 = entries.slice(0,3).map(([k,v])=>`<li><b>${k}</b>: ${v}</li>`).join('');
+      const top3 = entries.slice(0,3).map(([k,v])=>`<b>${k}</b> (${v})`).join(', ');
+      const bottom3 = entries.slice(-3).reverse().map(([k,v])=>`<b>${k}</b> (${v})`).join(', ');
+
       // simple recent change: last vs previous session
-      const dates = Object.keys(grouped).sort();
+      const dates = Object.keys(grouped).sort().filter(d => d !== "unspecified");
       let deltas = [];
       if(dates.length>=2){
         const last = grouped[dates[dates.length-1]], prev = grouped[dates[dates.length-2]];
@@ -127,15 +185,33 @@
       }
       const mostUp = deltas.find(d=>d[1]>0);
       const mostDown = deltas.find(d=>d[1]<0);
-      $('#insights').innerHTML = `
-        <h3>Quick Insights</h3>
-        <ul>
-          ${top3? `<li>Top roles overall: <ul>${top3}</ul></li>`:''}
-          ${mostUp? `<li>Rising: <b>${mostUp[0]}</b> (Δ ${mostUp[1]})</li>`:''}
-          ${mostDown? `<li>Falling: <b>${mostDown[0]}</b> (Δ ${mostDown[1]})</li>`:''}
-        </ul>
-        <p class="small">Tip: Map your role tags to the rubric: ${window.Harkness.RUBRIC.roles.map(r=>'<code class="kbd">'+r.id+'</code>').join(' ')}</p>
+
+      const html = `
+        <h3>Insights & Recommendations</h3>
+        <div class="card" style="background: var(--bg-secondary);">
+          <h4 style="margin-top: 0; font-size: 1.1rem;">Most Common Roles</h4>
+          <p>${top3 || 'No data yet'}</p>
+
+          <h4 style="font-size: 1.1rem; margin-top: 1.5rem;">Least Common Roles</h4>
+          <p>${bottom3 || 'No data yet'}</p>
+
+          ${dates.length >= 2 ? `
+            <h4 style="font-size: 1.1rem; margin-top: 1.5rem;">Recent Changes (${dates[dates.length-2]} → ${dates[dates.length-1]})</h4>
+            <ul>
+              ${mostUp ? `<li><strong>Growing:</strong> ${mostUp[0]} <span style="color: var(--accent-warm);">(+${mostUp[1]})</span></li>` : ''}
+              ${mostDown ? `<li><strong>Declining:</strong> ${mostDown[0]} <span style="color: var(--text-muted);">(${mostDown[1]})</span></li>` : ''}
+            </ul>
+          ` : '<p class="small" style="margin-top: 1.5rem;">Add a Date column to track changes over time.</p>'}
+
+          <h4 style="font-size: 1.1rem; margin-top: 1.5rem;">Next Steps</h4>
+          <ul>
+            <li>Consider prompting students to try underused roles</li>
+            <li>Celebrate growth in emerging roles</li>
+            <li>Use role stems to support students in trying new discussion moves</li>
+          </ul>
+        </div>
       `;
+      document.getElementById('insights').innerHTML = html;
     }
     async function handleRows(rows){
       const {roleGuess, dateGuess, headers} = autoDetectColumns(rows);
@@ -145,8 +221,9 @@
       dateSel.innerHTML = [''].concat(headers).map(h=>`<option ${h===dateGuess?'selected':''}>${h}</option>`).join('');
       const roleCol = roleGuess; const dateCol = dateGuess || null;
       const counts = buildRoleCounts(rows, roleCol);
-      renderRoleChart(counts);
       const grouped = groupByDate(rows, roleCol, dateCol);
+      renderAggregateStats(rows, counts, grouped);
+      renderRoleChart(counts);
       renderTrendChart(grouped);
       computeInsights(counts, grouped);
     }
